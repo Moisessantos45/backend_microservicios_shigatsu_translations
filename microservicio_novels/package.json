@@ -1,0 +1,36 @@
+{
+  "name": "api_shigatsutranslations_tsc",
+  "version": "1.0.0",
+  "description": "Api shigatsutranslations",
+  "main": "index.js",
+  "scripts": {
+    "tsc": "tsc",
+    "dev": "ts-node-dev src/index.ts",
+    "start": "node build/index.js"
+  },
+  "author": "Moises santos hernandez",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/express": "^4.17.21",
+    "@types/qrcode": "^1.5.5",
+    "@types/speakeasy": "^2.0.10",
+    "@types/uuid": "^9.0.8",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@types/cors": "^2.8.17",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "4.18.2",
+    "firebase-admin": "^12.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "otpauth": "^9.2.2",
+    "qrcode": "^1.5.3",
+    "socket.io": "^4.7.4",
+    "speakeasy": "^2.0.0",
+    "uuid": "^9.0.1"
+  }
+}
