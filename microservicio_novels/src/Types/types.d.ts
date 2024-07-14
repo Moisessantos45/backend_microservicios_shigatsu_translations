@@ -3,42 +3,8 @@ interface typesJwt {
   iat: number;
   exp: number;
 }
-
-interface volumenData {
-  portadaVolumen: string;
-  volumen: number;
-  links: string[];
-  createdAt: number;
-  nombreNovela: string;
-  disponibilidad: string;
-  novelId: string;
-  volumenId?: string;
-  id?: string;
-}
-
-type volumenDataWithoutVolumen = Omit<
-  volumenData,
-  "portadaVolumen" | "links" | "disponibilidad"
->;
-
-interface chapterData {
-  capituloId?: string;
-  capitulo: number;
-  createdAt: number;
-  nombreNovela: string;
-  novelId: string;
-  contenido: string;
-  volumenPertenece: number;
-  nombreCapitulo: string;
-  id?: string;
-}
-
-type chapterDataWithoutContentChapter = Omit<
-  chapterData,
-  "contenido" | "capitulo"
->;
-
 interface novelData {
+  id: string;
   titleNovel: string;
   volumenesActuales: string;
   nombresAlternos: string;
@@ -51,9 +17,7 @@ interface novelData {
   ilustracionesAtuales: string;
   statusNovel: string;
   personajes: string;
-  idNovel?: string;
   novelId: string;
-  id?: string;
 }
 
 type novelDataWithoutVolumenes = Omit<
@@ -65,6 +29,40 @@ type novelDataWithoutVolumenes = Omit<
   | "autor"
   | "ilustracionesAtuales"
   | "personajes"
+>;
+
+interface volumenData {
+  id: string;
+  volumenId: string;
+  portadaVolumen: string;
+  volumen: number;
+  links: string[];
+  createdAt: number;
+  nombreNovela: string;
+  disponibilidad: string;
+  novelId: string;
+}
+
+type volumenDataWithoutVolumen = Omit<
+  volumenData,
+  "portadaVolumen" | "links" | "disponibilidad"
+>;
+
+interface chapterData {
+  id: string;
+  capituloId: string;
+  capitulo: number;
+  createdAt: number;
+  nombreNovela: string;
+  novelId: string;
+  contenido: string;
+  volumenPertenece: number;
+  nombreCapitulo: string;
+}
+
+type chapterDataWithoutContentChapter = Omit<
+  chapterData,
+  "contenido" | "capitulo"
 >;
 
 interface siteConfig {

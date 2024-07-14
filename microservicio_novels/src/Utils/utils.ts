@@ -74,4 +74,4 @@ const arraysIguales = (array1: string[], array2: string[]): boolean => {
 //   console.log("Imagen de código QR creada");
 // });
 
-export { isString, parseStatus, obtenerFecha,arraysIguales };
+export { isString, parseStatus, obtenerFecha, arraysIguales };

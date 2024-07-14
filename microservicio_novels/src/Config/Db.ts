@@ -1,7 +1,11 @@
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { config } from "dotenv";
+
+config();
 
 const firebaseConfig = {
+  project_id: process.env.PROJECT_ID,
   private_key: process.env.PRIVATE_KEY,
   apiKey: process.env.API_KEY,
   authDomain: process.env.AUTH_DOMAIN,

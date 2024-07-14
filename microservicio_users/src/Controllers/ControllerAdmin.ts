@@ -1,17 +1,9 @@
 import { dbSupabase } from "../Config/db";
 import { Request, Response } from "express";
 import { encryptarPassword, comparePassword } from "../Helpers/bcryptHelpers";
-import Jwt from "jsonwebtoken";
-// import speakeasy from "speakeasy";
 import dotenv from "dotenv";
 import generateToken from "../Helpers/generateToken";
-import {
-  UserWithoutPassword,
-  userData,
-  siteConfig,
-  UserWithoutToken,
-  typesJwt,
-} from "../Types/types";
+import { UserWithoutPassword, userData, siteConfig } from "../Types/types";
 import totp from "../Helpers/ValidateOTPAUTH";
 
 dotenv.config();
@@ -33,16 +25,18 @@ const loginHandler = async (req: Request, res: Response): Promise<void> => {
     }
 
     const docs: userData = data;
-    if (docs.userActive === true) {
-      res.status(400).json({ msg: "Ya tienes una sesion activa" });
-      return;
-    }
-
     const checkPasswordHas = await comparePassword(password, docs.password);
     if (!checkPasswordHas) {
       res.status(400).json({ msg: "La contraseña es incorrecta" });
       return;
     }
+    if (docs.userActive === true) {
+      await dbSupabase
+        .from("users")
+        .update({ userActive: false, token: "" })
+        .eq("idUser", docs.idUser);
+    }
+
     const id: string = docs.idUser;
     const checkStatus = docs.userStatus;
     if (!checkStatus) {
@@ -51,13 +45,14 @@ const loginHandler = async (req: Request, res: Response): Promise<void> => {
     }
     const check2fa = docs.has_2fa;
     const token: string = generateToken(id).trim();
+
     const userActive: boolean = check2fa ? false : true;
     await dbSupabase
       .from("users")
       .update({ token, userActive })
       .eq("id", docs.id);
 
-    const { ...dataUser } = docs as UserWithoutToken;
+    const { password: _, ...dataUser } = docs;
     dataUser.token = token;
     dataUser.userActive = userActive;
     res.status(200).json(dataUser);
@@ -78,16 +73,15 @@ const login2faHandler = async (req: Request, res: Response): Promise<void> => {
     }
     const { data, error } = await dbSupabase
       .from("users")
-      .select("*")
+      .update({ userActive: true })
       .eq("idUser", idUser)
       .single();
-    if (error) {
+
+    if (error || data === null) {
       res.status(400).json({ msg: "El usuario no existe" });
       return;
     }
-    const dataUser = data as userData;
-    dataUser.userActive = true;
-    await dbSupabase.from("users").update(dataUser).eq("idUser", idUser);
+
     res.status(200).json({ msg: "Codigo 2fa correcto" });
   } catch (error) {
     res.status(500).json({ msg: "Ocurrio un error al iniciar sesion" });
@@ -110,6 +104,7 @@ const logoutHandler = async (req: Request, res: Response): Promise<void> => {
       .from("users")
       .update({ token: "", userActive: false })
       .eq("idUser", idParams);
+
     res.status(200).json({ msg: "Sesion cerrada correctamente" });
   } catch (error) {
     res.status(500).json({ msg: "Ocurrio un error al cerrar sesion" });
@@ -120,19 +115,8 @@ const panelAdminHandler = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  const authHeader = req.headers?.authorization;
-  let token = authHeader && authHeader.split(" ")[1];
-  token ??= "";
-  if (!token) {
-    res.status(400).json({ msg: "No se ha enviado el token" });
-    return;
-  }
+  const idToken = req.query.idToken;
   try {
-    const decoded: typesJwt = (await Jwt.verify(
-      token,
-      process.env.SECRET_KEY as string
-    )) as typesJwt;
-    const idToken = decoded.idToken;
     const [getUsersById, getAllUsers] = await Promise.all([
       dbSupabase.from("users").select("*").eq("idUser", idToken).single(),
       dbSupabase.from("users").select("*", { count: "exact" }),
@@ -141,11 +125,8 @@ const panelAdminHandler = async (
     const totalUsers: Number = getAllUsers.count || 0;
     const newGetUsersById: userData = getUsersById.data;
 
-    const {
-      password: __,
-      token: _,
-      ...getUsersByIdData
-    } = newGetUsersById as userData;
+    const { password: __, token: _, ...getUsersByIdData } = newGetUsersById;
+
     res.status(200).json({ getUsersByIdData, totalUsers });
   } catch (error) {
     res.status(500).json({ msg: "Ocurrio un error en la solicitud" });
@@ -161,7 +142,7 @@ const getUsersHandler = async (_req: Request, res: Response): Promise<void> => {
     }
     const users: UserWithoutPassword[] = data.map((doc) => {
       const { password, token, ...userData } = doc;
-      return { ...userData } as UserWithoutPassword;
+      return { ...userData };
     });
 
     res.status(200).json(users);
@@ -199,7 +180,7 @@ const addUserHandler = async (req: Request, res: Response): Promise<void> => {
       token,
       has_2fa: false,
       is_first_login: true,
-    })
+    });
 
     res.status(200).json({ msg: "Usuario registrado correctamente" });
   } catch (error) {
@@ -273,7 +254,7 @@ const updateUserStatusHandler = async (
       res.status(400).json({ msg: "El usuario no existe" });
       return;
     }
-    const newdataUser: userData = data as userData;
+    const newdataUser: userData = data;
 
     await dbSupabase
       .from("users")
@@ -369,6 +350,30 @@ const updateConfigHandler = async (
   }
 };
 
+const changesStatusSite = async (req: Request, res: Response) => {
+  const status = req.query.status;
+  try {
+    const validateStatus = ["true", "false"].find((item) => item === status);
+    if (!validateStatus) {
+      res.status(400).json({ msg: "El estado no es valido" });
+      return;
+    }
+    const { data, error } = await dbSupabase
+      .from("ConfigSite")
+      .update({ isMaintenanceMode: JSON.parse(validateStatus) })
+      .select("id");
+
+    if (error || data === null) {
+      res.status(400).json({ msg: "No hay configuracion registrada" });
+      return;
+    }
+
+    res.status(200).json({ msg: "Estado actualizado correctamente" });
+  } catch (error) {
+    res.status(500).json({ msg: "Ocurrio un error en la solicitud" });
+  }
+};
+
 export {
   loginHandler,
   logoutHandler,
@@ -381,4 +386,5 @@ export {
   getConfigHandler,
   updateConfigHandler,
   login2faHandler,
+  changesStatusSite,
 };

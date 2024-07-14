@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   addUserHandler,
+  changesStatusSite,
   deleteUserHandler,
   getConfigHandler,
   getUsersHandler,
@@ -39,6 +40,7 @@ router.delete(
 router
   .route("/PanelAdmin/getConfig")
   .get(getConfigHandler)
-  .put(updateConfigHandler);
+  .put(updateConfigHandler)
+  .patch(changesStatusSite);
 
 export default router;

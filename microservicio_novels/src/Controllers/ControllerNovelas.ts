@@ -8,10 +8,12 @@ import errorHandle from "../Service/errorHandle";
 const getNovels = async (_req: Request, res: Response): Promise<void> => {
   try {
     const dataNovels = await dbFirebase.collection("novelasData").get();
-    const novels: novelData[] = dataNovels.docs.map((item) => {
+
+    const novels = dataNovels.docs.map((item) => {
       const { ...rest } = item.data();
-      return { id: item.id, idNovel: item.id, ...rest } as novelData;
+      return { id: item.id, ...rest };
     });
+
     res.status(200).json(novels);
   } catch (error) {
     errorHandle(error, res);
@@ -20,6 +22,16 @@ const getNovels = async (_req: Request, res: Response): Promise<void> => {
 
 const addNovels = async (req: Request, res: Response): Promise<void> => {
   try {
+    const { empty } = await dbFirebase
+      .collection("novelasData")
+      .where("nombreNovela", "==", req.body.nombreNovela)
+      .get();
+
+    if (!empty) {
+      res.status(400).json({ msg: "La novela ya existe" });
+      return;
+    }
+
     const { statusNovel, volumenesActuales, ...rest } = req.body;
     const dataReq: novelData = {
       ...rest,
@@ -27,6 +39,7 @@ const addNovels = async (req: Request, res: Response): Promise<void> => {
       volumenesActuales: parseInt(volumenesActuales),
       statusNovel: parseStatus(req.body.statusNovel),
     };
+
     await dbFirebase.collection("novelasData").add(dataReq);
     res.status(201).json(dataReq);
   } catch (error) {
@@ -66,16 +79,21 @@ const insertNovelData = async (req: Request, res: Response): Promise<void> => {
 };
 
 const updateNovels = async (req: Request, res: Response): Promise<void> => {
-  const { idNovel } = req.params;
+  const { novelId } = req.params;
   try {
-    const novel = await dbFirebase.collection("novelasData").doc(idNovel).get();
+    const novel = await dbFirebase
+      .collection("novelasData")
+      .where("novelId", "==", novelId)
+      .get();
 
-    if (!novel.exists) {
+    if (novel.empty) {
       res.status(404).json({ msg: "Novela no encontrada" });
       return;
     }
-    const newDataNovel = novel.data() || {};
-    const { idNovel: _, ...dataNovel } = req.body;
+
+    const newDataNovel = novel.docs[0].data();
+    const id = novel.docs[0].id;
+    const { novelId: _, ...dataNovel } = req.body;
     let verifyDataUpdates: boolean = false;
     for (const key in dataNovel) {
       if (newDataNovel[key] !== dataNovel[key]) {
@@ -92,10 +110,7 @@ const updateNovels = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    await dbFirebase
-      .collection("novelasData")
-      .doc(idNovel)
-      .update(newDataNovel);
+    await dbFirebase.collection("novelasData").doc(id).update(newDataNovel);
 
     res.status(200).json({ msg: "Novela actualizada" });
   } catch (error) {
@@ -107,22 +122,23 @@ const updateNovelStatusHandler = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  const { idNovel } = req.params;
+  const { novelId } = req.params;
   const status: string = req.query.status as string;
   try {
-    const novelId = await dbFirebase
+    const data = await dbFirebase
       .collection("novelasData")
-      .doc(idNovel)
+      .where("novelId", "==", novelId)
       .get();
 
-    if (!novelId.exists) {
+    if (data.empty) {
       res.status(403).json({ msg: "Novela no encontrada" });
       return;
     }
+    const id = data.docs[0].id;
 
     await dbFirebase
       .collection("novelasData")
-      .doc(idNovel)
+      .doc(id)
       .update({ statusNovel: parseStatus(status) });
 
     res.status(200).json({ msg: "Status Actualizado" });
@@ -135,18 +151,18 @@ const handleNovelStatusUpdate = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  const { idNovel } = req.params;
-  const status: string = req.query.status as string;
-  const novelRef = dbFirebase.collection("novelasData").doc(idNovel);
+  const { novelId } = req.params;
+  // const status: string = req.query.status as string;
+  const novelRef = dbFirebase
+    .collection("novelasData")
+    .where("novelId", "==", novelId);
   try {
     await dbFirebase.runTransaction(async (transction) => {
       const novelId = await transction.get(novelRef);
 
-      if (!novelId.exists) {
+      if (!novelId.empty) {
         throw new Error("Novela no encontrada");
       }
-
-      novelRef.update({ statusNovel: parseStatus(status) });
     });
 
     res.status(200).json({ msg: "Status Actualizado" });
@@ -156,9 +172,9 @@ const handleNovelStatusUpdate = async (
 };
 
 const deleteNovels = async (req: Request, res: Response): Promise<void> => {
-  const { idNovel } = req.params;
+  const { novelId } = req.params;
   try {
-    await dbFirebase.collection("novelasData").doc(idNovel).delete();
+    await dbFirebase.collection("novelasData").doc(novelId).delete();
     res.status(200).json({ msg: "Novela eliminada" });
   } catch (error) {
     errorHandle(error, res);

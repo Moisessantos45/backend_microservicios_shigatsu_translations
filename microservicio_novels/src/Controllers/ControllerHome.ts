@@ -8,7 +8,8 @@ const getHomePageContent = async (
   res: Response
 ): Promise<void> => {
   try {
-    const dataHome = await dbFirebase.collection("novelasData").get();
+    const dataHome = await dbFirebase.collection("novelasData").get()
+    
     if (dataHome.empty) {
       res.status(404).json({ msg: "No se encontraron datos" });
       return;

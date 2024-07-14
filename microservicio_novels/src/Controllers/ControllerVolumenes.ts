@@ -1,6 +1,7 @@
 import dbFirebase from "../Config/Db";
 import { Request, Response } from "express";
-import { volumenData, volumenDataWithoutVolumen } from "../Types/types";
+import { v4 as uuidv4 } from "uuid";
+import { volumenData } from "../Types/types";
 import { arraysIguales, obtenerFecha } from "../Utils/utils";
 import errorHandle from "../Service/errorHandle";
 
@@ -13,7 +14,6 @@ const getVolumenes = async (_req: Request, res: Response): Promise<void> => {
     }
 
     const newVolumenes = dataVolumen.docs.map((doc) => ({
-      volumenId: doc.id,
       id: doc.id,
       ...doc.data(),
     }));
@@ -34,9 +34,13 @@ const getVolumenesContent = async (_req: Request, res: Response) => {
       res.status(404).json({ msg: "No se encontraron datos" });
       return;
     }
-    const newVolumenData: volumenDataWithoutVolumen[] = docs.map((doc) => {
+
+    const newVolumenData = docs.map((doc) => {
       const { portadaVolumen, links, disponibilidad, ...res } = doc.data();
-      return { volumenId: doc.id, ...res } as volumenDataWithoutVolumen;
+      return {
+        id: doc.id,
+        ...res,
+      };
     });
 
     res.status(200).json(newVolumenData);
@@ -52,6 +56,7 @@ const addVolumen = async (req: Request, res: Response): Promise<void> => {
       const verifyExist = await transction.get(
         dbFirebase
           .collection("volumenesNovela")
+          .where("novelId", "==", req.body.novelId)
           .where("volumen", "==", +req.body.volumen)
           .where("nombreNovela", "==", req.body.nombreNovela)
       );
@@ -63,6 +68,7 @@ const addVolumen = async (req: Request, res: Response): Promise<void> => {
       const { volumen, ...rest } = req.body;
       const newVolumen: volumenData = {
         ...rest,
+        volumenId: uuidv4(),
         createdAt: obtenerFecha(),
         volumen: +volumen,
       };
@@ -80,16 +86,17 @@ const updateVolumen = async (req: Request, res: Response): Promise<void> => {
   try {
     const verifyExist = await dbFirebase
       .collection("volumenesNovela")
-      .doc(volumenId)
+      .where("volumenId", "==", volumenId)
       .get();
 
-    if (!verifyExist.exists) {
+    if (verifyExist.empty) {
       res.status(404).json({ msg: "El volumen no existe" });
       return;
     }
 
-    const newVolumen = verifyExist.data() || {};
-    const { volumenId: _, createdAt, ...dataVolumen } = req.body;
+    const newVolumen = verifyExist.docs[0].data();
+    const id = verifyExist.docs[0].id;
+    const { volumenId: _, id: __, createdAt, ...dataVolumen } = req.body;
     let verifyDataUpdates: boolean = false;
     for (const key in dataVolumen) {
       if (newVolumen[key] !== dataVolumen[key]) {
@@ -111,10 +118,7 @@ const updateVolumen = async (req: Request, res: Response): Promise<void> => {
       res.status(200).json({ msg: "No hay datos para actualizar" });
       return;
     }
-    await dbFirebase
-      .collection("volumenesNovela")
-      .doc(volumenId)
-      .update(newVolumen);
+    await dbFirebase.collection("volumenesNovela").doc(id).update(newVolumen);
     res.status(200).json({ msg: "Datos actualizados correctamente" });
   } catch (error) {
     errorHandle(error, res);

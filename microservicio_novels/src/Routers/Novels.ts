@@ -10,7 +10,7 @@ import {
 const router = Router();
 
 router
-  .route("/addNovels/:idNovel")
+  .route("/addNovels/:novelId")
   .get(getNovels)
   .post(addNovels)
   .put(updateNovels)

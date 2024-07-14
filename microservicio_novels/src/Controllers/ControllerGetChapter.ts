@@ -11,6 +11,7 @@ const getChapter = async (req: Request, res: Response): Promise<void> => {
         .where("novelId", "==", novelId)
         .where("volumenPertenece", "==", parseInt(vol))
         .where("capitulo", "==", parseInt(capitulo))
+        .limit(1)
         .get(),
       dbFirebase
         .collection("chaptersNovels")
@@ -23,11 +24,16 @@ const getChapter = async (req: Request, res: Response): Promise<void> => {
       res.status(404).json({ message: "No se encontró el capitulo" });
       return;
     }
+    const {
+      capituloId,
+      createdAt,
+      novelId: _,
+      volumenPertenece,
+      ...newChapter
+    } = chapter.docs[0].data();
+
     const cantidadVolumenes: number = getChapterNovelVol.docs.length;
-    const newChapter = chapter.docs.map((item) => {
-      const { contenido, nombreCapitulo,capitulo } = item.data();
-      return { contenido, nombreCapitulo,capitulo };
-    });
+
     res.status(200).json({ newChapter, cantidadVolumenes });
   } catch (error) {
     errorHandle(error, res);

@@ -1,5 +1,6 @@
 import dbFirebase from "../Config/Db";
 import { Request, Response } from "express";
+import { v4 as uuidv4 } from "uuid";
 import { obtenerFecha } from "../Utils/utils";
 import { chapterDataWithoutContentChapter } from "../Types/types";
 import errorHandle from "../Service/errorHandle";
@@ -12,7 +13,6 @@ const getChaptersDb = async (_req: Request, res: Response): Promise<void> => {
       return;
     }
     const newChaptersData = newChapters.docs.map((doc) => ({
-      capituloId: doc.id,
       id: doc.id,
       ...doc.data(),
     }));
@@ -24,44 +24,56 @@ const getChaptersDb = async (_req: Request, res: Response): Promise<void> => {
 
 const getChaptersContentDb = async (_req: Request, res: Response) => {
   try {
-    const { docs, empty } = await dbFirebase.collection("chaptersNovels").get();
+    const { docs, empty } = await dbFirebase
+      .collection("chaptersNovels")
+      .limit(10)
+      .get();
+
     if (empty) {
       res.status(404).json({ msg: "No se encontraron datos" });
       return;
     }
-    const newChaptersData: chapterDataWithoutContentChapter[] = docs
-      .map((doc) => {
+
+    const newChaptersData: chapterDataWithoutContentChapter[] = docs.map(
+      (doc) => {
         const { contenido, capitulo, nombreCapitulo, ...rest } = doc.data();
         return {
-          capituloId: doc.id,
+          id: doc.id,
           ...rest,
         } as chapterDataWithoutContentChapter;
-      })
-      .slice(0, 10);
+      }
+    );
+
     res.status(200).json(newChaptersData);
   } catch (error) {
     errorHandle(error, res);
   }
 };
 
+// si empty es true, no hay datos en la base de datos
 const addChapterDb = async (req: Request, res: Response): Promise<void> => {
   try {
     const verifyExist = await dbFirebase
       .collection("chaptersNovels")
+      .where("novelId", "==", req.body.novelId)
       .where("capitulo", "==", +req.body.capitulo)
       .where("nombreNovela", "==", req.body.nombreNovela)
       .where("volumenPertenece", "==", +req.body.volumenPertenece)
       .get();
+
     if (!verifyExist.empty) {
       res.status(400).json({ msg: "El capitulo ya existe" });
       return;
     }
+
     const { capitulo, ...rest } = req.body;
     const newChapter = {
       ...rest,
+      capituloId: uuidv4(),
       createdAt: obtenerFecha(),
       capitulo: +capitulo,
     };
+
     await dbFirebase.collection("chaptersNovels").add(newChapter);
     res.status(200).json(newChapter);
   } catch (error) {
@@ -79,17 +91,20 @@ const addChapterTransaction = async (
       const verifyExist = await transaction.get(
         dbFirebase
           .collection("chaptersNovels")
+          .where("novelId", "==", req.body.novelId)
           .where("capitulo", "==", +req.body.capitulo)
           .where("nombreNovela", "==", req.body.nombreNovela)
           .where("volumenPertenece", "==", +req.body.volumenPertenece)
       );
-      if (!verifyExist.empty) {
+
+      if (verifyExist.empty) {
         throw new Error("El capitulo ya existe");
       }
 
       const { capitulo, ...rest } = req.body;
       const newChapter = {
         ...rest,
+        capituloId: uuidv4(),
         createdAt: obtenerFecha(),
         capitulo: +capitulo,
       };
@@ -108,13 +123,17 @@ const updateChapterDb = async (req: Request, res: Response): Promise<void> => {
   try {
     const verifyExist = await dbFirebase
       .collection("chaptersNovels")
-      .doc(capituloId)
+      .where("capituloId", "==", capituloId)
+      .limit(1)
       .get();
-    if (!verifyExist.exists) {
+
+    if (verifyExist.empty) {
       res.status(404).json({ msg: "El capitulo no existe" });
       return;
     }
-    const newChapter = verifyExist.data() || {};
+
+    const newChapter = verifyExist.docs[0].data();
+    const id = verifyExist.docs[0].id;
     const { capituloId: _, ...dataChapter } = req.body;
     let verifyDataUpdates: boolean = false;
     for (const key in dataChapter) {
@@ -132,14 +151,14 @@ const updateChapterDb = async (req: Request, res: Response): Promise<void> => {
         }
       }
     }
+
     if (!verifyDataUpdates) {
       res.status(200).json({ msg: "No hay datos para actualizar" });
       return;
     }
-    await dbFirebase
-      .collection("chaptersNovels")
-      .doc(capituloId)
-      .update(newChapter);
+
+    await dbFirebase.collection("chaptersNovels").doc(id).update(newChapter);
+
     res.status(200).json({ msg: "Datos actualizados correctamente" });
   } catch (error) {
     errorHandle(error, res);
